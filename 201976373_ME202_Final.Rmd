@@ -1,0 +1,685 @@
+---
+title: "201976373_ME202_Final"
+output: github_document
+date: "2024-08-15"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width=14, fig.height=10)
+options(width = 120)  # Adjust the width as needed
+```
+
+```{r, echo=FALSE}
+require(igraph)
+require(knitr)
+require(dplyr)
+require(dendextend)
+
+el_ad <- read.csv("Law_Advice.csv", header = TRUE, as.is = TRUE)
+el_fr <- read.csv("Law_Friendship.csv", header = TRUE, as.is = TRUE)
+el_co <- read.csv("Law_CoWork.csv", header = TRUE, as.is = TRUE)
+law_att <- read.csv("Law_NodeAtt.csv", header = TRUE, as.is = TRUE)
+
+net_ad <- graph_from_edgelist(as.matrix(el_ad), directed = TRUE)
+net_fr <- graph_from_edgelist(as.matrix(el_fr), directed = TRUE)
+net_co <- graph_from_edgelist(as.matrix(el_co), directed = TRUE)
+mat_all <- (as.matrix(as_adjacency_matrix(net_ad)) 
+            + as.matrix(as_adjacency_matrix(net_fr)) 
+            + as.matrix(as_adjacency_matrix(net_co)))
+net_all <- graph_from_adjacency_matrix(mat_all, mode = "directed", weighted = TRUE)
+
+attify<-function(n_net){
+  V(n_net)$names <- V(n_net)
+  V(n_net)$Status <- law_att$Status
+  V(n_net)$Gender <- law_att$Gender
+  V(n_net)$Office <- law_att$Office
+  V(n_net)$Seniority <- law_att$Seniority
+  V(n_net)$Age <- law_att$Age
+  V(n_net)$Practice <- law_att$Practice
+  V(n_net)$LawSchool <- law_att$LawSchool
+  return(n_net)
+}
+
+net_ad <- attify(net_ad)
+net_fr <- attify(net_fr)
+net_co <- attify(net_co)
+net_all <- attify(net_all)
+
+fr_all <- layout.fruchterman.reingold(net_all)
+```
+
+
+*1. Familiarise yourself with the three networks*
+
+_Present in a table the density, reciprocity, and transitivity of the advice friendship, and co-working networks._
+
+```{r, echo=FALSE}
+data.frame(
+  network = c("Advice", "Friendship", "Co-Working"),
+  density = c(edge_density(net_ad), edge_density(net_fr), edge_density(net_co)),
+  reciprocity = c(reciprocity(net_ad), reciprocity(net_fr), reciprocity(net_co)),
+  transitivity = c(transitivity(net_ad), transitivity(net_fr), transitivity(net_co))
+)
+```
+
+
+_Plot each of these three networks with nodes sized and colored by a property that you find most relevant and informative (there is no “right” answer here, but some plots would be more interesting and informative). Make sure to include a legend with each plot to help interpret the node colours._
+
+```{r, echo=FALSE}
+## Advice Network based on Office 
+
+office_colours <- c("Boston" = "red",
+                     "HartFord" = "blue",
+                     "Providence" = "green")
+
+# Map religion numbers to religion names
+office_labels <- c("1" = "Boston",
+                     "2" = "HartFord",
+                     "3" = "Providence")
+
+# Convert vertex religion attribute to color
+vertex_office_names <- office_labels[as.character(V(net_ad)$Office)]
+vertex_colours <- office_colours[vertex_office_names]
+
+# Plot the network with the specified vertex colors
+plot(net_ad, 
+     vertex.size = degree(net_ad, mode = "in") * 2, 
+     vertex.label = NA, 
+     vertex.color = vertex_colours, 
+     main = "Advice Network by Office", 
+     layout = layout_with_fr, 
+     edge.arrow.size = 0.1, 
+     edge.arrow.width = 1.5, 
+     edge.width = seq(0.5, 0.08))
+
+# Add the legend with the corresponding colors
+legend("bottomright", 
+       legend = names(office_colours), 
+       fill = office_colours, 
+       title = "Office")
+
+## Friendship Network based on LawSchool 
+
+lawschool_colours <- c("Harvard or Yale" = "red",
+                     "University of Connecticut" = "blue",
+                     "Other" = "green")
+
+# Map religion numbers to religion names
+lawschool_labels <- c("1" = "Harvard or Yale",
+                     "2" = "University of Connecticut",
+                     "3" = "Other")
+
+# Convert vertex religion attribute to color
+vertex_lawschool_names <- lawschool_labels[as.character(V(net_fr)$LawSchool)]
+vertex_lawschool_colours <- lawschool_colours[vertex_lawschool_names]
+
+# Plot the network with the specified vertex colors
+plot(net_fr, 
+     vertex.size = degree(net_fr, mode = "in") * 2, 
+     vertex.label = NA, 
+     vertex.color = vertex_lawschool_colours, 
+     main = "Friendship Network by Law School", 
+     layout = layout_with_fr, 
+     edge.arrow.size = 0.1, 
+     edge.arrow.width = 1.5, 
+     edge.width = seq(0.5, 0.08))
+
+# Add the legend with the corresponding colors
+legend("bottomright", 
+       legend = names(lawschool_colours), 
+       fill = lawschool_colours, 
+       title = "Law School")
+
+## Co-Working Network based on Practice 
+
+practice_colours <- c("litigation" = "red",
+                     "corporate" = "blue")
+
+# Map religion numbers to religion names
+practice_labels <- c("1" = "litigation",
+                     "2" = "corporate")
+
+# Convert vertex religion attribute to color
+vertex_practice_names <- practice_labels[as.character(V(net_co)$Practice)]
+vertex_practice_colours <- practice_colours[vertex_practice_names]
+
+# Plot the network with the specified vertex colors
+plot(net_co, 
+     vertex.size = degree(net_co, mode = "in") * 2, 
+     vertex.label = NA, 
+     vertex.color = vertex_practice_colours, 
+     main = "Coworking Network by Practice", 
+     layout = layout_with_fr, 
+     edge.arrow.size = 0.1, 
+     edge.arrow.width = 1.5, 
+     edge.width = seq(0.5, 0.08))
+
+# Add the legend with the corresponding colors
+legend("bottomright", 
+       legend = names(practice_colours), 
+       fill = practice_colours, 
+       title = "Practice")
+
+```
+
+
+_Plot the indegree distributions in the three networks. You should select the type of plot that represents the distributions most clearly._
+
+```{r, echo=FALSE}
+## Advice Network Indegree Distribution
+## Log-log Plot of indegree distribution in the network
+ind_ad <- degree(net_ad, mode = "in")
+length(ind_ad)
+summary(ind_ad)
+
+prob_ad <- degree_distribution(net_ad, mode='in')
+length(prob_ad)
+summary(ind_ad)
+
+prob_ad <- prob_ad[-1]
+
+nonzero_pos_ad <- which(prob_ad!=0)
+prob_ad <- prob_ad[nonzero_pos_ad]
+
+indegree_ad <- 1:max(ind_ad)
+indegree_ad <- indegree_ad[nonzero_pos_ad]
+
+plot(prob_ad ~ indegree_ad, xlab='Indegree d', ylab='Probability P(X=d)', log='xy', col='blue')
+title('Advice Network: Indegree Distribution')
+
+## Complementary Cumulative Distribution Function 
+## Plotting the probability of observing that indegree or larger in the data 
+
+ccdf_ad <- NULL
+for (i in 1:length(prob_ad)) {
+  ccdf_ad[i] = sum( prob_ad[ seq(i, length(prob_ad)) ] )
+}
+plot(ccdf_ad ~ indegree_ad, xlab='Indegree d', ylab='Complementary CDF P(X>=d)', log='xy', col='blue')
+title('Advice Network: Indegree Distribution')
+
+
+## Friendship Network Indegree Distribution
+## Log-log Plot of indegree distribution in the network
+ind_fr <- degree(net_fr, mode = "in")
+length(ind_fr)
+summary(ind_fr)
+
+prob_fr <- degree_distribution(net_fr, mode='in')
+length(prob_fr)
+summary(ind_fr)
+
+prob_fr <- prob_fr[-1]
+
+nonzero_pos_fr <- which(prob_fr!=0)
+prob_fr <- prob_fr[nonzero_pos_fr]
+
+indegree_fr <- 1:max(ind_fr)
+indegree_fr <- indegree_fr[nonzero_pos_fr]
+
+plot(prob_fr ~ indegree_fr, xlab='Indegree d', ylab='Probability P(X=d)', log='xy', col='blue')
+title('Friendship Network: Indegree Distribution')
+
+
+## Complementary Cumulative Distribution Function 
+## Plotting the probability of observing that indegree or larger in the data 
+
+ccdf_fr <- NULL
+for (i in 1:length(prob_fr)) {
+  ccdf_fr[i] = sum( prob_fr[ seq(i, length(prob_fr)) ] )
+}
+plot(ccdf_fr ~ indegree_fr, xlab='Indegree d', ylab='Complementary CDF P(X>=d)', log='xy', col='blue')
+title('Friendship Network: Indegree Distribution')
+
+## Coworking Network Indegree Distribution
+## Log-log Plot of indegree distribution in the network
+ind_co <- degree(net_co, mode = "in")
+length(ind_co)
+summary(ind_co)
+
+prob_co <- degree_distribution(net_co, mode='in')
+length(prob_co)
+summary(ind_co)
+
+prob_co <- prob_co[-1]
+
+nonzero_pos_co <- which(prob_co!=0)
+prob_co <- prob_co[nonzero_pos_co]
+
+indegree_co <- 1:max(ind_co)
+indegree_co <- indegree_co[nonzero_pos_co]
+
+plot(prob_co ~ indegree_co, xlab='Indegree d', ylab='Probability P(X=d)', log='xy', col='blue')
+title('Coworking Network: Indegree Distribution')
+
+
+## Complementary Cumulative Distribution Function 
+## Plotting the probability of observing that indegree or larger in the data 
+
+ccdf_co <- NULL
+for (i in 1:length(prob_co)) {
+  ccdf_co[i] = sum( prob_co[ seq(i, length(prob_co)) ] )
+}
+plot(ccdf_co ~ indegree_co, xlab='Indegree d', ylab='Complementary CDF P(X>=d)', log='xy', col='blue')
+title('Coworking Network: Indegree Distribution')
+```
+
+
+_Describe the patterns you observe (from the summary statistics and the plots). What are the structures you observe, and how do the three types of networks differ? What might these patterns tell us about the nature of different kind of social relations in this firm?_
+
+For the Coworking Network, the complementary CDF plot shows a gradual decline, indicating a relatively smooth distribution of indegree values. The minimum indegree value is 4, showing that there is an obligatory collaborative element for all lawyers. The highest indegree is around 30, and the probability drops steadily as indegree increases. This suggests that the coworking network is relatively well-distributed, with no extreme centralization. Many lawyers have moderate levels of indegree, indicating they receive interactions from multiple colleagues. The probability distribution plot has a more varied pattern with peaks at different indegree values, suggesting some variability in the indegree distribution. This variability indicates that while some lawyers receive more interactions, there isn't a single dominant lawyer. The network structure is relatively decentralized with moderate indegree values. This indicates a well-distributed interaction network where many lawyers interact with multiple colleagues. This can promote collaborative working environments.
+
+For the Friendship Network, the complementary CDF plot for the friendship network shows a steeper decline compared to the coworking network. The minimum indegee value is 0, meaning that some lawyers have 0 friendships within the entire network. The highest indegree observed is around 20. This indicates that fewer lawyers have high indegree values, and most have lower indegree. The friendship network is more centralized compared to the coworking network. The probability distribution plot shows several peaks, but with fewer lawyers having very high indegree values. This pattern suggests that while there are popular individuals, the overall distribution of friendships is less evenly spread. A few lawyers are central, receiving many friendship ties, while most have fewer friends. The network is more centralized with fewer individuals having high indegree. This indicates that friendships are more selective and concentrated around a few central individuals. These central individuals may play key roles in the social fabric of the firm.
+
+For the Advice Network, the complementary CDF plot for the advice network shows a similar pattern to the friendship network, but with a higher maximum indegree value, being 37. This indicates that the Advice Network has the highest level of centralization compared to the Friendship and Coworking networks, with a few individuals being key advice givers. The minimum indegree distribution is 0, showing that some lawyers have 0 advisory connections within the entire network. The difference between the mean and maximum indegree value is also the highest compared to the other two networks, further enforcing the high level of centralisation within the network. The probability distribution plot shows multiple peaks, similar to the friendship network. This suggests a mixed distribution where some individuals are central advice givers, while others receive advice from fewer colleagues. The network structure suggests a reliance on a few knowledgeable or experienced lawyers. These central advice givers are likely critical to the decision-making and mentoring processes in the firm.
+
+Overall, these patterns reveal the nature of different social relations within the firm, with coworking interactions being widespread (as the mean and minimum indegree for coworking network is highest), while friendship and advisory relationships are more centralized around key individuals. This can have implications for network resilience, information flow, and the firm's social structure.  
+
+
+*2. How do the advice and friendship networks differ from random networks with similar size and degree distribution?*
+
+_Using the configuration model, create 10 random graphs that have the same size and degree distribution as the advice network and 10 that have the same size and degree distribution as the friendship network._
+
+Advice Network 
+```{r, echo=FALSE}
+outd_ad <- degree(net_ad, mode='out')
+
+create_random_graph_ad <- function(){
+  ran_ad <- sample_degseq(out.deg = outd_ad, in.deg = ind_ad, method = "simple")
+  return(ran_ad)
+}
+
+# Create 10 random graphs with the same degree distribution 
+random_graphs_ad <- lapply(1:10, function(x) create_random_graph_ad())
+
+par(mfrow=c(2,3))
+for (i in 1:10) {
+  plot(random_graphs_ad[[i]], main=paste("Random Graph", i),
+     edge.arrow.size = 0.1, 
+     edge.arrow.width = 1.5, 
+     edge.width = seq(0.5, 0.08))
+}
+
+```
+
+Friendship Network 
+```{r, echo=FALSE}
+outd_fr <- degree(net_fr, mode='out')
+
+create_random_graph_fr <- function(){
+  ran_fr <- sample_degseq(out.deg = outd_fr, in.deg = ind_fr, method = "simple")
+  return(ran_fr)
+}
+
+# Create 10 random graphs with the same degree distribution 
+random_graphs_fr <- lapply(1:10, function(x) create_random_graph_fr())
+
+par(mfrow=c(2,3))
+for (i in 1:10) {
+  plot(random_graphs_ad[[i]], main=paste("Random Graph", i),
+     edge.arrow.size = 0.1, 
+     edge.arrow.width = 1.5, 
+     edge.width = seq(0.5, 0.08))
+}
+```
+
+
+_Create a table to compare the reciprocity, average path length, and transitivity in the empirical networks to those in the equivalent randomized ones._
+
+Advice Network
+```{r, echo=FALSE}
+# Function to compute the desired metrics
+compute_metrics <- function(graph) {
+  reciprocity_value <- reciprocity(graph)
+  avg_path_length_value <- mean_distance(graph, directed = TRUE, unconnected = TRUE)
+  transitivity_value <- transitivity(graph, type = "global")
+  return(c(reciprocity_value, avg_path_length_value, transitivity_value))
+}
+
+empirical_metrics_ad <- compute_metrics(net_ad)
+
+random_metrics_ad <- t(sapply(random_graphs_ad, compute_metrics))
+
+comparison_table_ad <- data.frame(
+  Network = c("Empirical: Advice Network", paste("Random: Advice Network", 1:10)),
+  Reciprocity = c(empirical_metrics_ad[1], random_metrics_ad[, 1]),
+  AveragePathLength = c(empirical_metrics_ad[2], random_metrics_ad[, 2]),
+  Transitivity = c(empirical_metrics_ad[3], random_metrics_ad[, 3])
+)
+
+print(comparison_table_ad)
+write.csv(comparison_table_ad, "comparison_table_ad.csv", row.names = FALSE)
+```
+
+Friendship Network
+```{r, echo=FALSE}
+# Function to compute the desired metrics
+compute_metrics <- function(graph) {
+  reciprocity_value <- reciprocity(graph)
+  avg_path_length_value <- mean_distance(graph, directed = TRUE, unconnected = TRUE)
+  transitivity_value <- transitivity(graph, type = "global")
+  return(c(reciprocity_value, avg_path_length_value, transitivity_value))
+}
+
+empirical_metrics_fr <- compute_metrics(net_fr)
+
+random_metrics_fr <- t(sapply(random_graphs_fr, compute_metrics))
+
+comparison_table_fr <- data.frame(
+  Network = c("Empirical: Friendship Network", paste("Random: Friendship Network", 1:10)),
+  Reciprocity = c(empirical_metrics_fr[1], random_metrics_fr[, 1]),
+  AveragePathLength = c(empirical_metrics_fr[2], random_metrics_fr[, 2]),
+  Transitivity = c(empirical_metrics_fr[3], random_metrics_fr[, 3])
+)
+
+print(comparison_table_fr)
+write.csv(comparison_table_fr, "comparison_table_fr.csv", row.names = FALSE)
+```
+
+
+_How do the two empirical networks compare to their associated randomized graph? In your answer, make sure to give an intuitive interpretation for each metric._
+
+Reciprocity is the proportion of mutual connections in the network. For directed networks, it measures the likelihood that if node A connects to node B, node B also connects to node A. The empirical reciprocity (0.612174) is significantly higher than the mean of the randomized networks (0.201283). This suggests that friendships among lawyers are highly reciprocal, meaning mutual friendships are common. The empirical reciprocity (0.392377) is also higher than the mean of the randomized networks (0.167027). This indicates that advice-seeking relationships are often reciprocated, though to a lesser extent than friendships. Both the friendship and advice networks exhibit much higher reciprocity compared to their randomized counterparts, indicating that mutual relationships are a significant feature of these networks.
+
+The average path length is the average number of steps along the shortest paths for all possible pairs of network nodes. It measures the efficiency of information flow within the network. The empirical average path length (2.505126) is slightly higher than the mean of the randomized networks (2.316243). This indicates that while friendships are somewhat less efficient in terms of shortest paths compared to a randomized network, the difference is not substantial. The empirical average path length (2.243267) is higher than the mean of the randomized networks (2.134891). Similar to the friendship network, the advice network is slightly less efficient in terms of shortest paths. Both networks have slightly higher average path lengths than the randomized networks, suggesting that while they are somewhat less efficient, the difference is not drastic. This may be due to the presence of cohesive subgroups which increase the number of steps between some pairs of nodes.
+
+Transitivity (or clustering coefficient) measures the likelihood that two neighbors of a node are also neighbors of each other. It indicates the presence of tightly knit groups within the network. The empirical transitivity (0.448623) is significantly higher than the mean of the randomized networks (0.300018). This suggests that friendships among lawyers form more cohesive groups than would be expected by chance. The empirical transitivity (0.478783) is also much higher than the mean of the randomized networks (0.358673). This indicates a high level of clustering in advice-seeking relationships, forming tightly knit advisory groups. The high transitivity in both networks compared to the randomized networks highlights the presence of strong clustering. This suggests that lawyers form tight-knit groups for both friendship and advice, which is likely driven by common professional interests, shared work environments, or social factors.
+
+
+_What do these comparisons tell you about the nature and structure of these relationships among the lawyers?_
+
+It shows high reciprocity, as in the friendship network, empirical reciprocity (0.612174) is significantly higher than the randomized mean (0.201283) and in the advice network, empirical reciprocity (0.392377) is higher than the randomized mean (0.167027). The high reciprocity indicates that friendships among lawyers are largely mutual. This suggests that social bonds are strong and that there is a culture of mutual support and companionship. The relatively high reciprocity in the advice network indicates that advice-seeking and giving is often a two-way street. Lawyers who seek advice are also likely to give advice, fostering a culture of mutual assistance and professional collaboration.
+
+It also shows slightly higher average path length, as in the friendship network, empirical average path length (2.505126) is slightly higher than the randomized mean (2.316243) and in the advice network, empirical average path length (2.243267) is slightly higher than the randomized mean (2.134891). The slightly higher average path lengths suggest that while the networks are slightly less efficient in terms of information flow compared to random networks, they still maintain reasonable connectivity. The slight increase may be due to the formation of cohesive subgroups, which can increase the number of steps needed to connect some pairs of nodes.
+
+Finally, it shows high transitivity/clustering, as in the friendship network, empirical transitivity (0.448623) is much higher than the randomized mean (0.300018). In the advice network, empirical transitivity (0.478783) is much higher than the randomized mean (0.358673). The high transitivity in the friendship network indicates that friendships are not just individual ties but often part of larger, tightly knit groups. This suggests the presence of social circles or cliques within the firm. The high transitivity in the advice network suggests that advice relationships also form cohesive subgroups. Lawyers who seek advice from one person are likely to seek or give advice within the same subgroup, promoting knowledge sharing and mentorship within these clusters.
+
+The high reciprocity and transitivity indicate that the firm’s network is characterized by strong social and professional cohesion. Lawyers are not isolated; instead, they form part of mutually supportive and tightly knit groups. The slightly higher average path length and high transitivity suggest the presence of subgroups or cliques within the network. These subgroups likely consist of lawyers who interact more frequently with each other than with the rest of the network. Despite the presence of subgroups, the network maintains a relatively efficient structure. The average path length is only slightly higher than in randomized networks, indicating that the overall network is still well-connected. The high reciprocity in both networks points to a culture of mutual support and collaboration. Lawyers are likely to reciprocate both social interactions and professional advice, fostering a collaborative environment.
+
+
+*3. What seems to dictate the structure of the networks?*
+
+_Calculate the assortativity for gender, age, and status in the advice, friendship, and cowork networks. Present the results in a table._
+
+Status is a categorical variable 
+Age is a continuous variable 
+Gender is a categorical variable
+
+```{r, echo=FALSE}
+advice_assortativity <- c(
+  assortativity_nominal(net_ad, V(net_ad)$Gender),
+  assortativity(net_ad, V(net_ad)$Age),
+  assortativity_nominal(net_ad, V(net_ad)$Status)
+)
+
+friendship_assortativity <- c(
+  assortativity_nominal(net_fr, V(net_fr)$Gender),
+  assortativity(net_fr, V(net_fr)$Age),
+  assortativity_nominal(net_fr, V(net_fr)$Status)
+)
+
+cowork_assortativity <- c(
+  assortativity_nominal(net_co, V(net_co)$Gender),
+  assortativity(net_co, V(net_co)$Age),
+  assortativity_nominal(net_co, V(net_co)$Status)
+)
+
+# Create the data frame
+assortativity_df <- data.frame(
+  Network = rep(c("Advice", "Friendship", "Cowork"), each = 3),
+  Attribute = rep(c("Gender", "Age", "Status"), 3),
+  Assortativity = c(advice_assortativity, friendship_assortativity, cowork_assortativity)
+)
+
+# Print the data frame
+print(assortativity_df)
+write.csv(assortativity_df, "assortativity_df.csv", row.names = FALSE)
+```
+
+
+_Run the Walktrap community detection algorithm on the aggregate network and see how the resulting communities align (or not) with the vertex attributes. Include a plot of the aggregate network showing the results of the community detection algorithm._
+
+```{r, echo=FALSE}
+frlay <- layout_with_fr(net_all)
+
+wt <- cluster_walktrap(net_all, weights = E(net_all)$weight) ## Uses edge weight by default
+
+# Retrieve the community membership for each node
+memberships <- membership(wt)
+memberships
+table(memberships)
+
+plot_dendrogram(wt)
+
+# Plotting the dendrogram with adjusted margins and size
+# Convert to hclust object
+hc <- as.hclust(wt)
+# Convert to dendrogram
+dend <- as.dendrogram(hc)
+
+# Use dendextend to adjust the dendrogram
+dend <- dendextend::set(dend, "labels_cex", 0.6)
+dend <- dendextend::set(dend, "branches_lwd", 2)
+
+# Color the branches based on clusters
+dend <- dendextend::color_branches(dend, k = length(unique(memberships)), groupLabels = TRUE)
+
+# Increase plot size and adjust margins
+par(mar = c(5, 10, 5, 5) + 0.1)
+
+# Plot the dendrogram horizontally
+plot(dend, 
+     horiz = TRUE,  # Display the dendrogram horizontally
+     main = "Walktrap Community Detection on Aggregate Network", 
+     ylab = "Height")
+
+# Add horizontal lines to enhance readability
+abline(v = seq(0, max(hc$height), by = 0.5), col = "gray", lty = 2)
+
+# Print the community assignment for each node
+node_community_df <- data.frame(Node = V(net_all)$names, Community = memberships)
+
+# Group by community
+node_community_df <- node_community_df[order(node_community_df$Community),]
+
+print(node_community_df)
+
+# Count the number of nodes in each community
+community_counts <- table(V(net_all)$Community)
+
+# Print the number of nodes in each community
+print(community_counts)
+
+plot(wt, 
+     net_all,
+     main="Walktrap Community Detection on Aggregate Network",
+     edge.width = E(net_all)$weight,
+     layout = frlay,
+     edge.arrow.size = 0.1, 
+     edge.arrow.width = 1.5, 
+     edge.width = seq(0.5, 0.08))
+
+V(net_all)$Community <- membership(wt)
+
+plot(net_all, vertex.color=V(net_all)$Community, main="Aggregate Network with Walktrap Communities", vertex.label=NA,
+     edge.arrow.size = 0.1, 
+     edge.arrow.width = 1.5, 
+     edge.width = seq(0.5, 0.08))
+```
+
+Evaluate alignment with vertex attributes
+```{r, echo=FALSE}
+# Function to convert table to data frame with Attribute column
+convert_to_df <- function(tbl, attribute_name) {
+  df <- as.data.frame(tbl)
+  df$Attribute <- attribute_name
+  names(df) <- c("AttributeValue", "Community", "Count", "Attribute")
+  return(df)
+}
+
+# Create alignment tables and convert to data frames
+tables <- list(
+  Gender = table(Gender=V(net_all)$Gender, Community=V(net_all)$Community),
+  Age = table(Age=V(net_all)$Age, Community=V(net_all)$Community),
+  Status = table(Status=V(net_all)$Status, Community=V(net_all)$Community),
+  Office = table(Office=V(net_all)$Office, Community=V(net_all)$Community),
+  Seniority = table(Seniority=V(net_all)$Seniority, Community=V(net_all)$Community),
+  Practice = table(Practice=V(net_all)$Practice, Community=V(net_all)$Community),
+  LawSchool = table(LawSchool=V(net_all)$LawSchool, Community=V(net_all)$Community)
+)
+
+# Convert all tables to data frames and combine
+combined_df <- do.call(rbind, lapply(names(tables), function(name) convert_to_df(tables[[name]], name)))
+
+# Group values based on community and summarize counts
+grouped_df <- combined_df %>%
+  group_by(Community, Attribute, AttributeValue) %>%
+  summarize(TotalCount = sum(Count), .groups = 'drop')
+
+# Print the combined data frame
+print(grouped_df)
+write.csv(grouped_df, "grouped_df.csv", row.names = FALSE)
+
+# Summarize the alignment of communities with vertex attributes
+alignment_summary <- grouped_df %>%
+  group_by(Community, Attribute) %>%
+  summarize(TotalCount = sum(TotalCount), .groups = 'drop')
+
+# Print the summary
+print(alignment_summary)
+write.csv(alignment_summary, "alignment_summary.csv", row.names = FALSE)
+
+# Plot the alignment
+library(ggplot2)
+
+ggplot(grouped_df, aes(x=Community, y=TotalCount, fill=AttributeValue)) +
+  geom_bar(stat="identity", position="dodge") +
+  facet_wrap(~Attribute, scales="free_y") +
+  labs(title="Alignment of Communities with Vertex Attributes", x="Community", y="Total Count") +
+  theme_minimal()
+```
+
+Community 1 has the highest total count of 30 nodes, there are 18 nodes within Community 2, and there are 23 nodes inside Community 3. For Community 1, attribute values show varying counts, with some attribute values having 0 occurances and others having up to 25 occurences. Specific attributes like Age and Status have multiple attribute values with 0 occurences, indicating no representation in Community 1 for those values. Similar to Community 1, Community 2 also shows a range of occurrences for different attribute values. This distribbution of attribute values is more spread out compared to Community 1, suggesting a more diverse representation of attributes. Community 3 appears to have a more balanced representation across different attributes, with less attribute values having 0 occurrences. This community seems to have a higher average count per attribute value, indicating a more uniform distribution. 
+
+
+_Discuss what the results of these two analyses imply about the nature of relationships among the lawyers._
+
+The results of the assortativity analysis shows that in the advice network, lawyers are slightly more likely to seek advice from those of the same gender, more likely to seek advice from those of similar age, and more likely to seek advice from those of similar status. In the friendship network, friendships are more likely to form between lawyers of the same gender, friendships are strongly likely to form between lawyers of similar age, and there is a slight tendency for friendships to form between lawyers of different status levels.
+
+The walktrap community detection analysis reveals that the network is divided into distinct communities, each densely connected internally. These communities suggest that certain subgroups within the network have stronger internal interactions. By examining the community assignments and their attributes, we can see how certain attributes (e.g., gender, age, status) align with these communities. The visual representation of the communities shows distinct clusters, which may correlate with the assortativity analysis results.
+
+The positive assortativity values for gender, age, and status in the advice and friendship networks indicate a preference for forming ties with similar individuals. Homophily in gender and age is more pronounced in the friendship network, while homophily in status is more significant in the advice network.
+
+The advice network shows moderate assortativity based on status, suggesting that lawyers of similar ranks are more likely to seek advice from each other, reinforcing hierarchical structures. The friendship network has high age assortativity, indicating that social relationships are strongly influenced by age similarity, potentially due to shared life stages and experiences.
+
+The Walktrap community detection highlights the presence of tight-knit groups within the network. These communities likely represent subgroups with frequent interactions, such as departmental teams or close professional collaborators.
+
+The assortativity and community detection results suggest that while there are strong internal ties within communities, interactions across communities may be less frequent. Efforts to foster cross-community interactions could enhance collaboration and knowledge sharing across the firm. 
+
+
+*4. What helps predict the existence of a relationship between lawyers?*
+
+_Consider the exponential random graph models for the advice and friendship networks shown below. The table shows estimates (and standard errors in parentheses) of the coefficients for each term in exponential random graph models that predict the log-odds of a tie in the (1) advice and (2) friendship networks. The GWESP term has an alpha value of 0.7. The odegree0 term is a term accounting for the nodes with an out-degree of 0 in the friendship network (which can be ignored in your response). The reference category for status is 2 (associate, a more junior position)._
+
+The ERGM results show that the existence of a relationship between lawyers can be predicted by several key factors: 
+
+First, status, as higher-status lawyers are more likely to be sought for advice, and to a lesser extent, sought for a friendship. Status is also negatively correlated with the seeking of advice, meaning the higher the status, the lower the likeliness of seeking advice. 
+
+Second, gender and proximity, as lawyers are more likely to form ties with others of the same gender and those in the same office. This shows the importance of both gender homophily and physical proximity. 
+
+Third, reciprocity and triadic closure, both advice and friendship networks show a strong tendency towards reciprocity and triadic closure, particularly in the friendship network, suggesting that these social processes are crucial in forming and maintaining relationships among lawyers. Although in the friendship network, there is a higher rate of reciprocity, likely due to the fact that in the advice network, relationships are often formed between two lawyers of differing status, and the one of higher status is unlikely to seek advice from the lawyer of the lower status. 
+
+The fact that the alpha value for the GWESP term is 0.7 means that the influence of shared partners on the likelihood of forming a tie decays at a moderate rate, and is considered a low alpha, pointing towards high clustering. Each additional shared partner contributes to the likelihood of a tie because the alpha is low, but because it is not _very_ low, the influence of each subsequent shared partner still diminishes as more shared partners are considered, and the impact of each new shared partner on the likelihood of tie formation is somewhat less significant than the previous one. This reflects a realistic scenario in social networks, where a few shared connections might significantly increase the likelihood of forming a new tie, but beyond a certain point, additional shared partners have less incremental impact. 
+
+_Interpret each term in the ERGMs (except gwesp.decay and odegree0). How does each term influence whether or not two lawyers are connected? Use odds ratios in your substantive interpretation of each term._
+
+```{r, echo=FALSE}
+# Function to interpret ERGM coefficients
+interpret_ergm <- function(coefficient, name, network) {
+  odds_ratio <- exp(coefficient)
+  if (coefficient > 0) {
+    return(paste("In the", network, "network, a 1-unit increase in", name, "increases the odds of forming a tie by", round((odds_ratio - 1) * 100, 2), "% (OR:", round(odds_ratio, 2), ")."))
+  } else {
+    return(paste("In the", network, "network, a 1-unit increase in", name, "decreases the odds of forming a tie by", round((1 - odds_ratio) * 100, 2), "% (OR:", round(odds_ratio, 2), ")."))
+  }
+}
+
+# Coefficients and interpretation for Advice Network
+advice_interpretations <- data.frame(
+  Term = c("baseline probability (edges)", "age (nodecov.Age)", "status (receiver, nodeifactor.Status.1)", "status (sender, nodeofactor.Status.1)", "same gender (nodematch.Gender)", "same office (nodematch.Office)", "same practice (nodematch.Practice)", "mutual", "gwesp"),
+  Interpretation = c(
+    interpret_ergm(-4.28, "baseline probability (edges)", "advice"),
+    interpret_ergm(-0.01, "age (nodecov.Age)", "advice"),
+    interpret_ergm(1.02, "status (receiver, nodeifactor.Status.1)", "advice"),
+    interpret_ergm(-0.29, "status (sender, nodeofactor.Status.1)", "advice"),
+    interpret_ergm(0.25, "same gender (nodematch.Gender)", "advice"),
+    interpret_ergm(0.83, "same office (nodematch.Office)", "advice"),
+    interpret_ergm(0.89, "same practice (nodematch.Practice)", "advice"),
+    interpret_ergm(0.50, "mutual", "advice"),
+    interpret_ergm(0.43, "gwesp", "advice")
+  )
+)
+
+# Coefficients and interpretation for Friendship Network
+friendship_interpretations <- data.frame(
+  Term = c("baseline probability (edges)", "age (nodecov.Age)", "status (receiver, nodeifactor.Status.1)", "status (sender, nodeofactor.Status.1)", "same gender (nodematch.Gender)", "same office (nodematch.Office)", "same practice (nodematch.Practice)", "mutual", "gwesp"),
+  Interpretation = c(
+    interpret_ergm(-4.60, "baseline probability (edges)", "friendship"),
+    interpret_ergm(-0.01, "age (nodecov.Age)", "friendship"),
+    interpret_ergm(0.28, "status (receiver, nodeifactor.Status.1)", "friendship"),
+    interpret_ergm(0.08, "status (sender, nodeofactor.Status.1)", "friendship"),
+    interpret_ergm(0.17, "same gender (nodematch.Gender)", "friendship"),
+    interpret_ergm(0.52, "same office (nodematch.Office)", "friendship"),
+    interpret_ergm(0.26, "same practice (nodematch.Practice)", "friendship"),
+    interpret_ergm(2.39, "mutual", "friendship"),
+    interpret_ergm(0.81, "gwesp", "friendship")
+  )
+)
+```
+
+```{r advice-interpretations, echo=FALSE, results='asis'}
+# Print the interpretations for the advice network
+knitr::kable(advice_interpretations, caption = "Interpretations for Advice Network")
+
+# Print the interpretations for the friendship network
+knitr::kable(friendship_interpretations, caption = "Interpretations for Friendship Network")
+```
+
+edges:
+This is the baseline probability of a tie forming. The negative coefficients indicate that ties are generally unlikely to form in both networks, with friendship ties being slightly less likely than advice ties.
+
+nodecov.Age:
+For each year increase in age, the odds of forming a tie decrease by about 1% in both networks. Age has a slight negative effect on tie formation.
+
+nodeifactor.Status.1:
+Lawyers with status 1 (possibly partners) are more likely to receive ties. In the advice network, they are about 2.8 times more likely to receive advice ties, while in the friendship network, they are about 1.3 times more likely to receive friendship ties.
+
+nodeofactor.Status.1:
+Lawyers with status 1 are about 25% less likely to send advice ties, but slightly more likely (8.3% increase) to send friendship ties.
+
+nodematch.Gender:
+Lawyers of the same gender are about 28.4% more likely to form advice ties and 18.5% more likely to form friendship ties.
+
+nodematch.Office:
+Lawyers in the same office are about 2.3 times more likely to form advice ties and 1.7 times more likely to form friendship ties.
+
+nodematch.Practice:
+Lawyers in the same practice area are about 2.4 times more likely to form advice ties and 1.3 times more likely to form friendship ties.
+
+mutual:
+Mutual ties are about 1.6 times more likely in the advice network, but dramatically more likely (about 11 times) in the friendship network.
+
+gwesp:
+This term indicates the tendency for triadic closure. Both networks show a positive effect, with friendship ties showing a stronger tendency for triadic closure than advice ties.
+
+
+_How do the terms in the two ERGMs compare?_
+
+Both networks display homophily effects, with these effects generally being stronger in the advice network, specifically for office and practice, reflecting the professional nature of these ties. 
+
+The friendship network displays a much more robust tendency for reciprocity and triadic closure compared to the advice network. This suggests that mutual ties are crucial for friendship formation and that social ties are more likely to form within existing groups of friends. 
+
+Age has a minor negative effect on tie formation in both networks. 
+
+Lawyer status affects tie formation differently in two networks, with high-status lawyers more likely to receive ties in both networks but less likely to initiate advice ties. Furthmore, status plays a much more significant role in the advice network, indicating the importance of hierarchy in professional interactions. 
+
+Overall, both networks have a low baseline probability of forming ties, and both networks show similar patterns regarding age (slight negative effect) and gender homophily (positive effect).

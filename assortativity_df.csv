@@ -1,0 +1,10 @@
+"Network","Attribute","Assortativity"
+"Advice","Gender",0.0867576380410767
+"Advice","Age",0.236698267052348
+"Advice","Status",0.319887733803473
+"Friendship","Gender",0.206263409117368
+"Friendship","Age",0.446405191671562
+"Friendship","Status",0.552147466805133
+"Cowork","Gender",-0.0213873007229933
+"Cowork","Age",-0.0445761987204269
+"Cowork","Status",-0.0997882046269145
